@@ -4,6 +4,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const path = require('path');
+const axios = require('axios');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,46 +40,52 @@ app.get('/', (req, res) => {
 });
 
 // Endpoint per proxy
-app.use('/proxy', createProxyMiddleware({
-    target: 'http://httpbin.org/ip', // Target di default, verrà sovrascritto
-    changeOrigin: true,
-    pathRewrite: {
-        '^/proxy': ''
-    },
-    onProxyReq: (proxyReq, req, res) => {
-        // Configura proxy HTTP
-        proxyReq.setHeader('Proxy-Authorization', 
-            'Basic ' + Buffer.from(`${PROXY_CONFIG.username}:${PROXY_CONFIG.password}`).toString('base64')
-        );
-        
-        // Estrai URL target dal query parameter
-        const targetUrl = req.query.url;
-        if (targetUrl) {
-            try {
-                const url = new URL(targetUrl);
-                proxyReq.path = url.pathname + url.search;
-                proxyReq.setHeader('Host', url.hostname);
-                proxyReq.setHeader('X-Forwarded-Proto', url.protocol.slice(0, -1));
-            } catch (error) {
-                console.error('Invalid URL:', error);
-                res.status(400).json({ error: 'Invalid URL' });
-                return;
-            }
-        }
-    },
-    onProxyRes: (proxyRes, req, res) => {
-        // Rimuovi header che potrebbero causare problemi
-        delete proxyRes.headers['x-frame-options'];
-        delete proxyRes.headers['content-security-policy'];
-        
-        // Aggiungi header per permettere embedding
-        proxyRes.headers['X-Frame-Options'] = 'ALLOWALL';
-    },
-    onError: (err, req, res) => {
-        console.error('Proxy error:', err);
-        res.status(500).json({ error: 'Proxy error occurred' });
+app.use('/proxy', async (req, res) => {
+    const targetUrl = req.query.url;
+    
+    if (!targetUrl) {
+        return res.status(400).json({ error: 'URL parameter is required' });
     }
-}));
+    
+    try {
+        console.log('Proxying request to:', targetUrl);
+        
+        // Configura proxy agent
+        const proxyUrl = `http://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
+        const agent = new HttpsProxyAgent(proxyUrl);
+        
+        // Fai la richiesta tramite proxy
+        const response = await axios.get(targetUrl, {
+            httpsAgent: agent,
+            httpAgent: agent,
+            timeout: 30000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+        
+        // Imposta gli header della risposta
+        res.set({
+            'Content-Type': response.headers['content-type'] || 'text/html',
+            'X-Frame-Options': 'ALLOWALL'
+        });
+        
+        // Rimuovi header problematici
+        delete response.headers['x-frame-options'];
+        delete response.headers['content-security-policy'];
+        
+        console.log('Proxy request successful');
+        res.send(response.data);
+        
+    } catch (error) {
+        console.error('Proxy error:', error.message);
+        res.status(500).json({ 
+            error: 'Proxy error occurred', 
+            message: error.message,
+            url: targetUrl 
+        });
+    }
+});
 
 // Endpoint per ottenere informazioni proxy
 app.get('/proxy-info', (req, res) => {
