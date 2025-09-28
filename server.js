@@ -9,6 +9,9 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const UserAgent = require('user-agents');
 
+// Cache per cookie e sessioni per sembrare più realistico
+const cookieJar = new Map();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -54,24 +57,36 @@ app.use('/proxy', async (req, res) => {
         console.log('Proxying request to:', targetUrl);
         console.log('Using proxy protocol:', PROXY_CONFIG.protocol);
         
-        // Configura proxy agent in base al protocollo
+        // Configura proxy agent in base al protocollo con opzioni realistiche
         let agent;
         if (PROXY_CONFIG.protocol === 'socks5') {
             const proxyUrl = `socks5://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
-            agent = new SocksProxyAgent(proxyUrl);
+            agent = new SocksProxyAgent(proxyUrl, {
+                timeout: 30000,
+                keepAlive: true,
+                keepAliveMsecs: 30000,
+                maxSockets: 50,
+                maxFreeSockets: 10
+            });
         } else {
             const proxyUrl = `http://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
-            agent = new HttpsProxyAgent(proxyUrl);
+            agent = new HttpsProxyAgent(proxyUrl, {
+                timeout: 30000,
+                keepAlive: true,
+                keepAliveMsecs: 30000,
+                maxSockets: 50,
+                maxFreeSockets: 10
+            });
         }
         
         // Genera User-Agent realistico
         const userAgent = new UserAgent({ deviceCategory: 'desktop' });
         
-        // Header HTTP molto realistici (identici a Chrome reale)
+        // Header HTTP ultra-realistici (identici a Chrome reale con tutti i dettagli)
         const realisticHeaders = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'en-US,en;q=0.9,it;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,it;q=0.8,es;q=0.7,fr;q=0.6',
             'Accept-Encoding': 'gzip, deflate, br, zstd',
             'DNT': '1',
             'Connection': 'keep-alive',
@@ -83,20 +98,51 @@ app.use('/proxy', async (req, res) => {
             'Cache-Control': 'max-age=0',
             'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="136", "Chromium";v="136"',
             'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"'
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-ch-ua-platform-version': '"15.0.0"',
+            'sec-ch-ua-arch': '"x86"',
+            'sec-ch-ua-bitness': '"64"',
+            'sec-ch-ua-model': '""',
+            'sec-ch-ua-full-version-list': '"Not A(Brand";v="99.0.0.0", "Google Chrome";v="136.0.6776.85", "Chromium";v="136.0.6776.85"',
+            'sec-ch-prefers-color-scheme': 'light',
+            'sec-ch-ua-wow64': '?0',
+            'Referer': 'https://www.google.com/',
+            'Origin': 'https://www.google.com'
         };
+        
+        // Simula comportamento umano con delay casuale
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+        
+        // Gestisci cookie per sembrare più realistico
+        const targetHost = new URL(targetUrl).hostname;
+        const existingCookies = cookieJar.get(targetHost) || '';
+        if (existingCookies) {
+            realisticHeaders['Cookie'] = existingCookies;
+        }
         
         // Fai la richiesta tramite proxy con header realistici
         const response = await axios.get(targetUrl, {
             httpsAgent: agent,
             httpAgent: agent,
-            timeout: 20000,
+            timeout: 30000,
             headers: realisticHeaders,
-            maxRedirects: 5,
+            maxRedirects: 10,
             validateStatus: function (status) {
                 return status >= 200 && status < 400; // Accetta redirect
-            }
+            },
+            // Configurazioni per sembrare più realistico
+            maxContentLength: 50 * 1024 * 1024, // 50MB
+            maxBodyLength: 50 * 1024 * 1024, // 50MB
+            decompress: true, // Decompressione automatica
+            responseType: 'text', // Forza text per HTML
+            transformResponse: [(data) => data] // Non trasformare automaticamente
         });
+        
+        // Salva cookie per future richieste
+        if (response.headers['set-cookie']) {
+            const cookies = response.headers['set-cookie'].map(cookie => cookie.split(';')[0]).join('; ');
+            cookieJar.set(targetHost, cookies);
+        }
         
         // Imposta header di risposta
         res.set({
