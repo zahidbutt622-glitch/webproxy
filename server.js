@@ -7,51 +7,10 @@ const path = require('path');
 const axios = require('axios');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const { SocksProxyAgent } = require('socks-proxy-agent');
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const UserAgent = require('user-agents');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Aggiungi plugin stealth per evitare rilevamento bot
-puppeteer.use(StealthPlugin());
-
-// Cache per browser instances
-let browserInstance = null;
-
-// Funzione per inizializzare browser con proxy
-async function getBrowser() {
-    if (!browserInstance) {
-        const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-        
-        const args = [
-            '--no-sandbox'
-        ];
-
-        // Configura proxy SOCKS5
-        if (PROXY_CONFIG.protocol === 'socks5') {
-            args.push(`--proxy-server=socks5://${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`);
-        } else {
-            args.push(`--proxy-server=http://${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`);
-        }
-
-        browserInstance = await puppeteer.launch({
-            headless: 'new',
-            args: args,
-            ignoreDefaultArgs: ['--disable-extensions'],
-            defaultViewport: {
-                width: 1366,
-                height: 768,
-                deviceScaleFactor: 1,
-                hasTouch: false,
-                isLandscape: true,
-                isMobile: false,
-            }
-        });
-    }
-    return browserInstance;
-}
 
 // Configurazione proxy
 const PROXY_CONFIG = {
@@ -83,7 +42,7 @@ app.get('/', (req, res) => {
     res.sendFile(indexPath);
 });
 
-// Endpoint per proxy con Puppeteer stealth
+// Endpoint per proxy con richieste realistiche
 app.use('/proxy', async (req, res) => {
     const targetUrl = req.query.url;
     
@@ -91,126 +50,102 @@ app.use('/proxy', async (req, res) => {
         return res.status(400).json({ error: 'URL parameter is required' });
     }
     
-    let page = null;
-    
     try {
         console.log('Proxying request to:', targetUrl);
         console.log('Using proxy protocol:', PROXY_CONFIG.protocol);
         
-        const browser = await getBrowser();
-        page = await browser.newPage();
-        
-        // Configura credenziali proxy
-        if (PROXY_CONFIG.username && PROXY_CONFIG.password) {
-            await page.authenticate({
-                username: PROXY_CONFIG.username,
-                password: PROXY_CONFIG.password
-            });
+        // Configura proxy agent in base al protocollo
+        let agent;
+        if (PROXY_CONFIG.protocol === 'socks5') {
+            const proxyUrl = `socks5://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
+            agent = new SocksProxyAgent(proxyUrl);
+        } else {
+            const proxyUrl = `http://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
+            agent = new HttpsProxyAgent(proxyUrl);
         }
         
-        // Imposta User-Agent specifico (o usa quello generato)
-        const customUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
-        await page.setUserAgent(customUserAgent);
+        // Genera User-Agent realistico
+        const userAgent = new UserAgent({ deviceCategory: 'desktop' });
         
-        // Imposta viewport realistico
-        await page.setViewport({
-            width: 1366,
-            height: 768,
-            deviceScaleFactor: 1,
-            hasTouch: false,
-            isLandscape: true,
-            isMobile: false,
-        });
-        
-        // Aggiungi header realistici
-        await page.setExtraHTTPHeaders({
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        // Header HTTP molto realistici (identici a Chrome reale)
+        const realisticHeaders = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'en-US,en;q=0.9,it;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
             'DNT': '1',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
-            'Cache-Control': 'max-age=0'
-        });
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+            'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="136", "Chromium";v="136"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"'
+        };
         
-        // Simula comportamento umano
-        await page.evaluateOnNewDocument(() => {
-            // Rimuovi webdriver traces
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined,
-            });
-            
-            // Mock plugins
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5],
-            });
-            
-            // Mock languages
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en'],
-            });
-        });
-        
-        // Naviga alla pagina
-        await page.goto(targetUrl, {
-            waitUntil: 'networkidle2',
-            timeout: 30000
-        });
-        
-        // Aspetta un po' per simulare comportamento umano
-        await page.waitForTimeout(1000 + Math.random() * 2000);
-        
-        // Ottieni il contenuto HTML
-        let content = await page.content();
-        
-        // Riscrive i link per farli passare attraverso il proxy
-        const targetHost = new URL(targetUrl).hostname;
-        
-        // Riscrive tutti i link assoluti
-        content = content.replace(
-            /href=["'](https?:\/\/[^"']+)["']/gi,
-            (match, url) => {
-                if (url.includes(targetHost)) {
-                    return `href="/proxy?url=${encodeURIComponent(url)}"`;
-                }
-                return match;
+        // Fai la richiesta tramite proxy con header realistici
+        const response = await axios.get(targetUrl, {
+            httpsAgent: agent,
+            httpAgent: agent,
+            timeout: 20000,
+            headers: realisticHeaders,
+            maxRedirects: 5,
+            validateStatus: function (status) {
+                return status >= 200 && status < 400; // Accetta redirect
             }
-        );
-        
-        // Riscrive link relativi
-        content = content.replace(
-            /href=["'](\/[^"']*)["']/gi,
-            (match, path) => {
-                const fullUrl = `${new URL(targetUrl).protocol}//${targetHost}${path}`;
-                return `href="/proxy?url=${encodeURIComponent(fullUrl)}"`;
-            }
-        );
-        
-        // Riscrive JavaScript redirects
-        content = content.replace(
-            /window\.location\.href\s*=\s*["']([^"']+)["']/gi,
-            (match, url) => {
-                if (url.startsWith('http')) {
-                    return `window.location.href = "/proxy?url=${encodeURIComponent(url)}"`;
-                } else if (url.startsWith('/')) {
-                    const fullUrl = `${new URL(targetUrl).protocol}//${targetHost}${url}`;
-                    return `window.location.href = "/proxy?url=${encodeURIComponent(fullUrl)}"`;
-                }
-                return match;
-            }
-        );
+        });
         
         // Imposta header di risposta
         res.set({
-            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Type': response.headers['content-type'] || 'text/html; charset=utf-8',
             'X-Frame-Options': 'ALLOWALL',
             'Cache-Control': 'no-cache'
         });
         
-        console.log('Proxy request successful with Puppeteer');
+        // Se è HTML, riscrivi i link per farli passare attraverso il proxy
+        let content = response.data;
+        if (response.headers['content-type'] && response.headers['content-type'].includes('text/html')) {
+            const targetHost = new URL(targetUrl).hostname;
+            
+            // Riscrive tutti i link assoluti per farli passare attraverso il proxy
+            content = content.replace(
+                /href=["'](https?:\/\/[^"']+)["']/gi,
+                (match, url) => {
+                    if (url.includes(targetHost)) {
+                        return `href="/proxy?url=${encodeURIComponent(url)}"`;
+                    }
+                    return match;
+                }
+            );
+            
+            // Riscrive anche i link relativi
+            content = content.replace(
+                /href=["'](\/[^"']*)["']/gi,
+                (match, path) => {
+                    const fullUrl = `${new URL(targetUrl).protocol}//${targetHost}${path}`;
+                    return `href="/proxy?url=${encodeURIComponent(fullUrl)}"`;
+                }
+            );
+            
+            // Riscrive JavaScript redirects
+            content = content.replace(
+                /window\.location\.href\s*=\s*["']([^"']+)["']/gi,
+                (match, url) => {
+                    if (url.startsWith('http')) {
+                        return `window.location.href = "/proxy?url=${encodeURIComponent(url)}"`;
+                    } else if (url.startsWith('/')) {
+                        const fullUrl = `${new URL(targetUrl).protocol}//${targetHost}${url}`;
+                        return `window.location.href = "/proxy?url=${encodeURIComponent(fullUrl)}"`;
+                    }
+                    return match;
+                }
+            );
+        }
+        
+        console.log('Proxy request successful');
         res.send(content);
         
     } catch (error) {
@@ -220,10 +155,6 @@ app.use('/proxy', async (req, res) => {
             message: error.message,
             url: targetUrl 
         });
-    } finally {
-        if (page) {
-            await page.close();
-        }
     }
 });
 
@@ -235,8 +166,8 @@ app.get('/proxy-info', (req, res) => {
         username: PROXY_CONFIG.username,
         protocol: PROXY_CONFIG.protocol.toUpperCase(),
         country: 'Poland (PL)',
-        stealth_mode: 'Puppeteer + Stealth Plugin',
-        browser: 'Chrome Headless (Anti-Detection)'
+        stealth_mode: 'Realistic HTTP Headers',
+        browser: 'Chrome 136 User-Agent'
     });
 });
 
