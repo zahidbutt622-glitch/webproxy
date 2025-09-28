@@ -32,7 +32,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Endpoint principale
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    console.log('Looking for index.html at:', indexPath);
+    res.sendFile(indexPath);
 });
 
 // Endpoint per proxy
@@ -88,7 +90,14 @@ app.get('/proxy-info', (req, res) => {
 
 // Gestione errori 404
 app.use((req, res) => {
-    res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    console.log('404 - Looking for index.html at:', indexPath);
+    try {
+        res.status(404).sendFile(indexPath);
+    } catch (error) {
+        console.error('Error serving index.html:', error);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
 app.listen(PORT, () => {
