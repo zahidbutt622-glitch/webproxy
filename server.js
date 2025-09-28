@@ -6,6 +6,7 @@ const compression = require('compression');
 const path = require('path');
 const axios = require('axios');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,7 +16,8 @@ const PROXY_CONFIG = {
     host: '193.228.193.86',
     port: 12321,
     username: 'lJN6oWkG3FBUq1GO',
-    password: '0199382_country-pl_session-CBY0gFXR_lifetime-2h_streaming-1_skipispstatic-1_direct-1'
+    password: '0199382_country-pl_session-CBY0gFXR_lifetime-2h_streaming-1_skipispstatic-1_direct-1',
+    protocol: 'socks5' // Cambia in 'http' se vuoi usare HTTP proxy
 };
 
 // Middleware di sicurezza
@@ -49,10 +51,17 @@ app.use('/proxy', async (req, res) => {
     
     try {
         console.log('Proxying request to:', targetUrl);
+        console.log('Using proxy protocol:', PROXY_CONFIG.protocol);
         
-        // Configura proxy agent
-        const proxyUrl = `http://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
-        const agent = new HttpsProxyAgent(proxyUrl);
+        // Configura proxy agent in base al protocollo
+        let agent;
+        if (PROXY_CONFIG.protocol === 'socks5') {
+            const proxyUrl = `socks5://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
+            agent = new SocksProxyAgent(proxyUrl);
+        } else {
+            const proxyUrl = `http://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
+            agent = new HttpsProxyAgent(proxyUrl);
+        }
         
         // Fai la richiesta tramite proxy
         const response = await axios.get(targetUrl, {
@@ -133,6 +142,7 @@ app.get('/proxy-info', (req, res) => {
         status: 'active',
         server: `${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`,
         username: PROXY_CONFIG.username,
+        protocol: PROXY_CONFIG.protocol.toUpperCase(),
         country: 'Poland (PL)'
     });
 });
