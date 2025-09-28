@@ -26,20 +26,7 @@ async function getBrowser() {
         const userAgent = new UserAgent({ deviceCategory: 'desktop' });
         
         const args = [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-features=TranslateUI',
-            '--disable-ipc-flooding-protection',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
+            '--no-sandbox'
         ];
 
         // Configura proxy SOCKS5
