@@ -74,8 +74,48 @@ app.use('/proxy', async (req, res) => {
         delete response.headers['x-frame-options'];
         delete response.headers['content-security-policy'];
         
+        // Se è HTML, riscrivi i link per farli passare attraverso il proxy
+        let content = response.data;
+        if (response.headers['content-type'] && response.headers['content-type'].includes('text/html')) {
+            const targetHost = new URL(targetUrl).hostname;
+            
+            // Riscrive tutti i link assoluti per farli passare attraverso il proxy
+            content = content.replace(
+                /href=["'](https?:\/\/[^"']+)["']/gi,
+                (match, url) => {
+                    if (url.includes(targetHost)) {
+                        return `href="/proxy?url=${encodeURIComponent(url)}"`;
+                    }
+                    return match;
+                }
+            );
+            
+            // Riscrive anche i link relativi
+            content = content.replace(
+                /href=["'](\/[^"']*)["']/gi,
+                (match, path) => {
+                    const fullUrl = `${new URL(targetUrl).protocol}//${targetHost}${path}`;
+                    return `href="/proxy?url=${encodeURIComponent(fullUrl)}"`;
+                }
+            );
+            
+            // Riscrive i link in JavaScript (onclick, etc.)
+            content = content.replace(
+                /window\.location\.href\s*=\s*["']([^"']+)["']/gi,
+                (match, url) => {
+                    if (url.startsWith('http')) {
+                        return `window.location.href = "/proxy?url=${encodeURIComponent(url)}"`;
+                    } else if (url.startsWith('/')) {
+                        const fullUrl = `${new URL(targetUrl).protocol}//${targetHost}${url}`;
+                        return `window.location.href = "/proxy?url=${encodeURIComponent(fullUrl)}"`;
+                    }
+                    return match;
+                }
+            );
+        }
+        
         console.log('Proxy request successful');
-        res.send(response.data);
+        res.send(content);
         
     } catch (error) {
         console.error('Proxy error:', error.message);
