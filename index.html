@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebProxy - Naviga Anonimamente</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .url-input::placeholder {
+            color: #999;
+        }
+
+        .navigate-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+        }
+
+        .navigate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .navigate-btn:active {
+            transform: translateY(0);
+        }
+
+        .navigate-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 1rem;
+            color: #667eea;
+            font-size: 0.9rem;
+        }
+
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .proxy-info {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .proxy-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .examples {
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+
+        .examples h4 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .example-urls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .example-url {
+            background: #e9ecef;
+            padding: 0.5rem;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .example-url:hover {
+            background: #dee2e6;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+            
+            .logo {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🌐 WebProxy</div>
+        <div class="subtitle">Naviga anonimamente con i nostri proxy</div>
+        
+        <form id="proxyForm">
+            <div class="form-group">
+                <input 
+                    type="url" 
+                    id="urlInput" 
+                    class="url-input" 
+                    placeholder="Inserisci l'URL che vuoi visitare (es: https://google.com)"
+                    required
+                >
+            </div>
+            <button type="submit" class="navigate-btn" id="navigateBtn">
+                Naviga Anonimamente
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            Connessione in corso tramite proxy...
+        </div>
+
+        <div class="proxy-info" id="proxyInfo">
+            <span class="proxy-status"></span>
+            Proxy attivo - Server: 167.235.26.46:12321
+        </div>
+
+        <div class="examples">
+            <h4>Esempi di siti popolari:</h4>
+            <div class="example-urls">
+                <span class="example-url" onclick="setUrl('https://www.google.com')">Google</span>
+                <span class="example-url" onclick="setUrl('https://www.youtube.com')">YouTube</span>
+                <span class="example-url" onclick="setUrl('https://www.facebook.com')">Facebook</span>
+                <span class="example-url" onclick="setUrl('https://www.twitter.com')">Twitter</span>
+                <span class="example-url" onclick="setUrl('https://www.reddit.com')">Reddit</span>
+                <span class="example-url" onclick="setUrl('https://www.wikipedia.org')">Wikipedia</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('proxyForm');
+        const urlInput = document.getElementById('urlInput');
+        const navigateBtn = document.getElementById('navigateBtn');
+        const loading = document.getElementById('loading');
+
+        // Funzione per impostare URL dagli esempi
+        function setUrl(url) {
+            urlInput.value = url;
+            urlInput.focus();
+        }
+
+        // Gestione invio form
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = urlInput.value.trim();
+            if (!url) return;
+
+            // Validazione URL
+            try {
+                new URL(url);
+            } catch {
+                alert('Per favore inserisci un URL valido (es: https://google.com)');
+                return;
+            }
+
+            // Mostra loading
+            navigateBtn.disabled = true;
+            loading.style.display = 'block';
+
+            try {
+                // Apri il sito in una nuova finestra tramite proxy
+                const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
+                window.open(proxyUrl, '_blank');
+                
+                // Reset form dopo un breve delay
+                setTimeout(() => {
+                    loading.style.display = 'none';
+                    navigateBtn.disabled = false;
+                }, 2000);
+
+            } catch (error) {
+                console.error('Errore:', error);
+                alert('Si è verificato un errore durante la connessione. Riprova.');
+                loading.style.display = 'none';
+                navigateBtn.disabled = false;
+            }
+        });
+
+        // Verifica stato proxy al caricamento
+        async function checkProxyStatus() {
+            try {
+                const response = await fetch('/proxy-info');
+                const data = await response.json();
+                console.log('Proxy status:', data);
+            } catch (error) {
+                console.error('Errore verifica proxy:', error);
+            }
+        }
+
+        // Verifica stato all'avvio
+        checkProxyStatus();
+    </script>
+</body>
+</html>
