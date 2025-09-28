@@ -28,12 +28,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Servi file statici
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 // Endpoint principale
 app.get('/', (req, res) => {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    console.log('Looking for index.html at:', indexPath);
+    const indexPath = path.join(__dirname, 'index.html');
+    console.log('Serving index.html from:', indexPath);
     res.sendFile(indexPath);
 });
 
@@ -90,8 +90,8 @@ app.get('/proxy-info', (req, res) => {
 
 // Gestione errori 404
 app.use((req, res) => {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    console.log('404 - Looking for index.html at:', indexPath);
+    const indexPath = path.join(__dirname, 'index.html');
+    console.log('404 - Serving index.html from:', indexPath);
     try {
         res.status(404).sendFile(indexPath);
     } catch (error) {
