@@ -14,7 +14,8 @@
     "helmet": "^7.0.0",
     "compression": "^1.7.4",
     "axios": "^1.4.0",
-    "https-proxy-agent": "^5.0.1"
+    "https-proxy-agent": "^5.0.1",
+    "socks-proxy-agent": "^7.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
