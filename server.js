@@ -12,10 +12,10 @@ const PORT = process.env.PORT || 3000;
 
 // Configurazione proxy
 const PROXY_CONFIG = {
-    host: '167.235.26.46',
+    host: '193.228.193.86',
     port: 12321,
     username: 'lJN6oWkG3FBUq1GO',
-    password: '0199382_country-es_session-2j46VtlF_lifetime-24h_streaming-1_skipispstatic-1_direct-1'
+    password: '0199382_country-pl_session-CBY0gFXR_lifetime-2h_streaming-1_skipispstatic-1_direct-1'
 };
 
 // Middleware di sicurezza
@@ -132,7 +132,8 @@ app.get('/proxy-info', (req, res) => {
     res.json({
         status: 'active',
         server: `${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`,
-        username: PROXY_CONFIG.username
+        username: PROXY_CONFIG.username,
+        country: 'Poland (PL)'
     });
 });
 
